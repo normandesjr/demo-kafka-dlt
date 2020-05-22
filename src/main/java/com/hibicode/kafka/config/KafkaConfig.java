@@ -13,8 +13,8 @@ import org.springframework.kafka.support.converter.JsonMessageConverter;
 public class KafkaConfig {
 
     @Bean
-    public ConsumerFactory<String, RechargeRequest> consumerFactory(KafkaProperties properties) {
-        return new DefaultKafkaConsumerFactory<String, RechargeRequest>(properties.buildConsumerProperties());
+    public ConsumerFactory<?, ?> consumerFactory(KafkaProperties properties) {
+        return new DefaultKafkaConsumerFactory<>(properties.buildConsumerProperties());
     }
 
     @Bean

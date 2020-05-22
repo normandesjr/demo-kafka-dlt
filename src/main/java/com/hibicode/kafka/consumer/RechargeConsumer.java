@@ -14,7 +14,7 @@ public class RechargeConsumer {
     private static final Logger log = LoggerFactory.getLogger(RechargeConsumer.class);
 
     @KafkaListener(topics = "test1", containerFactory = "kafkaJsonListenerContainerFactory")
-    public void process(@Payload ConsumerRecord<String, RechargeRequest> consumerRecord) {
+    public void process(@Payload ConsumerRecord<?, ?> consumerRecord) {
         log.info("Msg: " + consumerRecord.value() + " - key: " + consumerRecord.key());
     }
 
