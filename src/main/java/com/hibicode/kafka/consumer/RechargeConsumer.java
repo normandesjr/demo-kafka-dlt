@@ -15,8 +15,8 @@ public class RechargeConsumer {
     private static final Logger log = LoggerFactory.getLogger(RechargeConsumer.class);
 
     @KafkaListener(topics = "test1", containerFactory = "kafkaJsonListenerContainerFactory")
-    public void process(@Payload RechargeRequest rechargeRequest, Acknowledgment ack) {
-        log.info("Account: " + rechargeRequest.getAccount());
+    public void process(@Payload ConsumerRecord<String, RechargeRequest> consumerRecord, Acknowledgment ack) {
+        log.info("Account: " + consumerRecord.value().getAccount() + " key: " + consumerRecord.key());
 
         ack.acknowledge();
     }
