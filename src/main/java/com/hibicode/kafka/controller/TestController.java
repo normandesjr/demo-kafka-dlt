@@ -14,11 +14,19 @@ public class TestController {
     @Autowired
     private KafkaTemplate<String, RechargeRequest> kafkaTemplate;
 
+    @Autowired
+    private KafkaTemplate<String, String> kafkaStringTemplate;
+
     @GetMapping
     public void test() {
         RechargeRequest request = new RechargeRequest();
         request.setAccount("ohhhhh!");
         kafkaTemplate.send("test1", "key123", request);
+    }
+
+    @GetMapping("/error")
+    public void error() {
+        kafkaStringTemplate.send("test1", "keyErro", "erro");
     }
 
 }

@@ -1,6 +1,8 @@
 package com.hibicode.kafka.consumer;
 
 import com.hibicode.kafka.consumer.model.RechargeRequest;
+import com.hibicode.kafka.exception.NotRetryableException;
+import com.hibicode.kafka.exception.RetryableException;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,9 +18,13 @@ public class RechargeConsumer {
 
     @KafkaListener(topics = "test1", containerFactory = "kafkaJsonListenerContainerFactory")
     public void process(@Payload ConsumerRecord<String, RechargeRequest> consumerRecord, Acknowledgment ack) {
-        log.info("Account: " + consumerRecord.value().getAccount() + " key: " + consumerRecord.key());
-
-        ack.acknowledge();
+        try {
+//            throw new NotRetryableException();
+            throw new RetryableException();
+//            log.info("Account: " + consumerRecord.value().getAccount() + " key: " + consumerRecord.key());
+        } finally {
+            ack.acknowledge();
+        }
     }
 
 }
