@@ -1,4 +1,4 @@
-package com.hibicode.kafka.controller.dto;
+package com.hibicode.kafka.model.dto;
 
 public enum ErrorType {
 

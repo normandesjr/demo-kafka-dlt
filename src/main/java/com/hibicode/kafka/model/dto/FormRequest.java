@@ -1,4 +1,4 @@
-package com.hibicode.kafka.controller.dto;
+package com.hibicode.kafka.model.dto;
 
 public class FormRequest {
 
@@ -36,5 +36,14 @@ public class FormRequest {
 
     public void setRetryableStopAt(RetryableStopAt retryableStopAt) {
         this.retryableStopAt = retryableStopAt;
+    }
+
+    @Override
+    public String toString() {
+        return "FormRequest{" +
+                "value='" + value + '\'' +
+                ", errorType=" + errorType +
+                ", retryableStopAt=" + retryableStopAt +
+                '}';
     }
 }
