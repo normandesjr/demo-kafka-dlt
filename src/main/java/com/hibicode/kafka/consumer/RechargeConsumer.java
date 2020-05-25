@@ -18,7 +18,7 @@ public class RechargeConsumer {
 
     private static final Logger log = LoggerFactory.getLogger(RechargeConsumer.class);
 
-    @KafkaListener(topics = "test1", containerFactory = "kafkaJsonListenerContainerFactory")
+    @KafkaListener(topics = "test1", containerFactory = "mainKafkaListenerContainerFactory")
     public void process(@Payload ConsumerRecord<String, RechargeRequest> consumerRecord, Acknowledgment ack) {
         try {
             log.info("################ Trying process!");
