@@ -8,6 +8,7 @@ import org.apache.kafka.common.header.Headers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -35,11 +36,17 @@ public class RetryKafkaConfig {
 
     private static final int ANY_PARTITION = -1;
 
-    private String dltTopic = "test1-dlt";
-    private String retryTopicsPattern = "test1-retry-[0-9]+";
-    private String retryFirstTopic = "test1-retry-1";
+    @Value("${app.kafka.dlt.topic}")
+    private String dltTopic;
 
-    private int retryTopicsCount = 3;
+    @Value("${app.kafka.dlt.retry.topics.pattern}")
+    private String retryTopicsPattern;
+
+    @Value("${app.kafka.dlt.retry.topic.first}")
+    private String retryFirstTopic;
+
+    @Value("${app.kafka.dlt.retry.topics}")
+    private int retryTopicsCount;
 
     private Optional<String> originTopic(Headers headers) {
         return Optional.ofNullable(headers.lastHeader(DLT_ORIGINAL_TOPIC))
@@ -51,59 +58,50 @@ public class RetryKafkaConfig {
     public BiFunction<ConsumerRecord<?, ?>, Exception, TopicPartition> retryResolver() {
         return (consumerRecord, exception) -> {
 
-            Optional<String> origem = originTopic(consumerRecord.headers())
+            Optional<String> origin = originTopic(consumerRecord.headers())
                             .filter(t -> t.matches(retryTopicsPattern))
                             .or(() -> Optional.of(retryFirstTopic));
 
-            log.info("Origin topic {}", origem.get());
+            log.info("retry config - origin topic {}", origin.get());
 
-            String destino =
-                    origem
-                            .filter(topico -> topico.matches(retryTopicsPattern))
+            String destinyTopic = origin
+                            .filter(topic -> topic.matches(retryTopicsPattern))
                             .map(t -> t.substring(t.lastIndexOf("-")))
                             .map(n -> n.split("-"))
                             .map(n -> n[1])
                             .map(Integer::parseInt)
                             .filter(n -> n < retryTopicsCount)
-                            .map(n -> origem.get().substring(0, origem.get().lastIndexOf("-")) + "-" + (n + 1))
+                            .map(n -> origin.get().substring(0, origin.get().lastIndexOf("-")) + "-" + (n + 1))
                             .orElse(dltTopic);
 
-            log.info("Tópico destino do registro {}", destino);
+            log.info("retry config - destiny topic: {}", destinyTopic);
 
-            return new TopicPartition(destino, ANY_PARTITION);
+            return new TopicPartition(destinyTopic, ANY_PARTITION);
         };
     }
 
     @Bean
     public SeekToCurrentErrorHandler retryErrorHandler(
-            @Qualifier("retryResolver")
-                    BiFunction<ConsumerRecord<?, ?>, Exception, TopicPartition> resolver,
+            @Qualifier("retryResolver") BiFunction<ConsumerRecord<?, ?>, Exception, TopicPartition> resolver,
             KafkaTemplate<?, ?> template) {
 
         var recoverer = new DeadLetterPublishingRecoverer(template, resolver);
-        // There's no need for retry local here
-        var handler = new SeekToCurrentErrorHandler(recoverer, NONE_RETRY);
-
+        var handler = new SeekToCurrentErrorHandler(recoverer, NONE_RETRY); // There's no need for retry local here
         return handler;
     }
 
     @Bean
-    public KafkaListenerContainerFactory<ConcurrentMessageListenerContainer<String, GenericRecord>>
-    retryKafkaListenerContainerFactory(
-            @Qualifier("retryErrorHandler")
-                    SeekToCurrentErrorHandler errorHandler,
+    public KafkaListenerContainerFactory<ConcurrentMessageListenerContainer<String, GenericRecord>> retryKafkaListenerContainerFactory(
+            @Qualifier("retryErrorHandler") SeekToCurrentErrorHandler errorHandler,
             KafkaProperties properties,
             ConsumerFactory<String, GenericRecord> factory){
 
-        ConcurrentKafkaListenerContainerFactory<String, GenericRecord> listener =
-                new ConcurrentKafkaListenerContainerFactory<>();
+        var listener = new ConcurrentKafkaListenerContainerFactory<String, GenericRecord>();
 
         listener.setConsumerFactory(factory);
         listener.setErrorHandler(errorHandler);
 
-//        // Falhar, caso os tópicos não existam?
-//        listener.getContainerProperties()
-//                .setMissingTopicsFatal(missingTopicsFatal);
+        listener.getContainerProperties().setMissingTopicsFatal(true);
 
         listener.getContainerProperties().setAckMode(AckMode.MANUAL);
         listener.getContainerProperties().setSyncCommits(Boolean.TRUE);

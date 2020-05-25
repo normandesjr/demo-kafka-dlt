@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -41,9 +42,14 @@ public class MainKafkaConfig {
     private static final int ANY_PARTITION = -1;
     private static final String NONE_HEADER = "__$$none";
 
-    private String dltTopic = "test1-dlt";
-    private String retryTopicsPattern = "test1-retry-[0-9]+";
-    private String retryFirstTopic = "test1-retry-1";
+    @Value("${app.kafka.dlt.topic}")
+    private String dltTopic;
+
+    @Value("${app.kafka.dlt.retry.topics.pattern}")
+    private String retryTopicsPattern;
+
+    @Value("${app.kafka.dlt.retry.topic.first}")
+    private String retryFirstTopic;
 
     @Autowired
     private KafkaProperties properties;
@@ -54,17 +60,12 @@ public class MainKafkaConfig {
     }
 
     private boolean isRetryable(Exception e) {
-
         boolean result = false;
-
-        Throwable throwableCase = ExceptionUtils.getRootCause(e);
-
+        var throwableCase = ExceptionUtils.getRootCause(e);
         log.error(throwableCase.getMessage(), throwableCase);
-
+        // TODO: Use properties to get retryable exception
         result = RetryableException.class.equals(throwableCase.getClass());
-
         log.info("{} is {}retryable", throwableCase.getClass(), (result ? "" : "not-"));
-
         return result;
     }
 
@@ -76,7 +77,6 @@ public class MainKafkaConfig {
 
     @Bean
     public BiFunction<ConsumerRecord<?, ?>, Exception, TopicPartition> mainResolver() {
-
         return (consumerRecord, exception) -> {
             TopicPartition result = new TopicPartition(dltTopic, ANY_PARTITION);
 
@@ -84,16 +84,16 @@ public class MainKafkaConfig {
                 Optional<String> origin = originTopic(consumerRecord.headers())
                                 .or(() -> Optional.of(NONE_HEADER));
 
-                log.info("..Origin topic: " + origin);
+                log.info("main config - origin topic: {}", origin);
 
-                String destiny = origin
+                String destinyTopic = origin
                                 .filter(topico -> !topico.matches(retryTopicsPattern))
                                 .map(t -> retryFirstTopic)
                                 .orElse(dltTopic);
 
-                log.info("..Tópico destino do registro {}", destiny);
+                log.info("main config - destiny topic: {}", destinyTopic);
 
-                result = new TopicPartition(destiny, ANY_PARTITION);
+                result = new TopicPartition(destinyTopic, ANY_PARTITION);
 
             }
 
@@ -106,10 +106,8 @@ public class MainKafkaConfig {
             @Qualifier("mainResolver") BiFunction<ConsumerRecord<?, ?>, Exception, TopicPartition> resolver,
             KafkaTemplate<?, ?> template) {
 
-        DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(template, resolver);
-
-        // With this option the message will not be recovered
-        // var handler = new SeekToCurrentErrorHandler(RETRY_3X);
+        // If we decide to remove recoverer, the message will not be recovered, only retry
+        var recoverer = new DeadLetterPublishingRecoverer(template, resolver);
         var handler = new SeekToCurrentErrorHandler(recoverer, RETRY_3X);
 
         // TODO: Add using properties
@@ -127,6 +125,8 @@ public class MainKafkaConfig {
         var factory = new ConcurrentKafkaListenerContainerFactory<String, GenericRecord>();
         factory.setConsumerFactory(consumerFactory);
         factory.setErrorHandler(errorHandler);
+
+        factory.getContainerProperties().setMissingTopicsFatal(true);
 
         factory.getContainerProperties().setAckMode(AckMode.MANUAL);
         factory.getContainerProperties().setSyncCommits(Boolean.TRUE);
